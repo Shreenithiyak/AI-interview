@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 // ─── Browser Speech Synthesis Fallback (TTS) ───────────────────────────────
@@ -24,17 +25,22 @@ const speakWithBrowser = (text) => {
 };
 
 // Try OpenAI TTS, fall back to browser speechSynthesis
-const speakText = async (text, token) => {
+const speakText = async (text, token, onUnauthorized) => {
   try {
     const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/user/interview/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': token },
       body: JSON.stringify({ text })
     });
+    if (res.status === 401) {
+      if (onUnauthorized) onUnauthorized();
+      throw new Error('Unauthorized');
+    }
     if (!res.ok) throw new Error('OpenAI TTS unavailable');
     const blob = await res.blob();
     return URL.createObjectURL(blob);
-  } catch {
+  } catch (err) {
+    if (err.message === 'Unauthorized') throw err;
     console.info('[TTS] Falling back to browser speechSynthesis');
     await speakWithBrowser(text);
     return null;
@@ -44,7 +50,8 @@ const speakText = async (text, token) => {
 
 // ─── Hook ───────────────────────────────────────────────────────────────────
 export const useVoiceInterview = (initialQuestion) => {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -65,7 +72,10 @@ export const useVoiceInterview = (initialQuestion) => {
       setIsSpeaking(true);
       setTranscript(`AI: ${initialQuestion}`);
       try {
-        const url = await speakText(initialQuestion, token);
+        const url = await speakText(initialQuestion, token, () => {
+          logout();
+          navigate('/login');
+        });
         if (url) setAiAudioUrl(url);
       } finally {
         setIsSpeaking(false);
@@ -145,10 +155,16 @@ export const useVoiceInterview = (initialQuestion) => {
         headers: { 'Authorization': token },
         body: formData
       });
+      if (res.status === 401) {
+        logout();
+        navigate('/login');
+        return;
+      }
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
       userText = data.text;
-    } catch {
+    } catch (err) {
+      if (token && err.message === 'Unauthorized') return; // Redirect already handled
       // Whisper failed — use browser SpeechRecognition text captured live
       console.info('[STT] Falling back to browser SpeechRecognition result');
       userText = browserRecognitionRef.current?.getText() || '';
@@ -171,6 +187,11 @@ export const useVoiceInterview = (initialQuestion) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': token },
         body: JSON.stringify({ transcript: userText, chatHistory: updatedHistory })
       });
+      if (chatRes.status === 401) {
+        logout();
+        navigate('/login');
+        return;
+      }
       const chatData = await chatRes.json();
       if (!chatData.success) throw new Error(chatData.message);
 
@@ -180,10 +201,14 @@ export const useVoiceInterview = (initialQuestion) => {
 
       // Step 3: Speak AI response
       setIsSpeaking(true);
-      const audioUrl = await speakText(aiText, token);
+      const audioUrl = await speakText(aiText, token, () => {
+        logout();
+        navigate('/login');
+      });
       if (audioUrl) setAiAudioUrl(audioUrl);
 
     } catch (err) {
+      if (token && err.message === 'Unauthorized') return; // Redirect already handled
       console.error("Chat/TTS error:", err);
       setTranscript("Chat failed. Please add OpenAI API key for full AI interview experience.");
     } finally {

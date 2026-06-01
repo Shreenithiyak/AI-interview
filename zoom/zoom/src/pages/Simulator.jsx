@@ -8,12 +8,53 @@ import { useVoiceInterview } from '../hooks/useVoiceInterview';
 export default function Simulator() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
   const { reminderEnabled, reminderTime } = useSettings();
   
   const [confidence, setConfidence] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    // Wait a brief moment to ensure AuthContext has initialized from localStorage
+    const checkAuth = setTimeout(() => {
+      if (!token) {
+        console.log("No token found, redirecting to login...");
+        navigate('/login');
+      }
+    }, 100);
+
+    return () => clearTimeout(checkAuth);
+  }, [token, navigate]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchProfile = async () => {
+      if (token === 'social-login-token') {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/user/logindata`, {
+          method: 'GET',
+          headers: {
+            'Authorization': token
+          }
+        });
+
+        if (!response.ok) {
+          // Token invalid or expired
+          logout();
+          navigate('/login');
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile', err);
+      }
+    };
+
+    fetchProfile();
+  }, [token, navigate, logout]);
   
   // Get question from state or use default if navigated directly
   const displayQuestion = location.state?.selectedQuestion || "Tell me about a time you solved a complex technical problem.";

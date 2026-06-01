@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,29 +34,41 @@ export const transcribeAudio = async (req, res) => {
 
 export const chatWithAI = async (req, res) => {
   try {
-    const openai = getOpenAI();
     const { transcript, chatHistory } = req.body;
+    
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not defined in .env");
+    }
 
-    const messages = [
-      {
-        role: 'system',
-        content: `You are Sarah, a Senior Technical Interviewer conducting a mock interview.
-        You are professional, encouraging, but rigorous.
-        Keep your responses concise, conversational, and suitable for text-to-speech.
-        Ask follow-up questions based on the candidate's answers.`,
-      },
-      ...(chatHistory || []),
-      { role: 'user', content: transcript },
-    ];
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // or gpt-3.5-turbo
-      messages: messages,
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction: `You are Sarah, a Senior Technical Interviewer conducting a mock interview.
+      You are professional, encouraging, but rigorous.
+      Keep your responses concise, conversational, and suitable for text-to-speech.
+      Ask follow-up questions based on the candidate's answers.`,
     });
 
-    res.status(200).json({ success: true, message: completion.choices[0].message.content });
+    // Map OpenAI conversation history roles to Gemini roles ('user' or 'model')
+    const history = (chatHistory || []).map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    if (history.length > 0 && history[0].role === 'model') {
+      history.unshift({
+        role: 'user',
+        parts: [{ text: "Let's start the mock interview." }]
+      });
+    }
+
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(transcript);
+    const responseText = await result.response.text();
+
+    res.status(200).json({ success: true, message: responseText });
   } catch (error) {
-    console.error('Chat error:', error);
+    console.error('Gemini Chat error:', error);
     res.status(500).json({ success: false, message: 'Chat interaction failed' });
   }
 };
