@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-const uri = "mongodb://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@ac-jkhg551-shard-00-00.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-01.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-02.big13pb.mongodb.net:27017/projectAI?ssl=true&replicaSet=atlas-m2ow9a-shard-0&authSource=admin&appName=Cluster0";
+const uri =process.env.MONGO_URI;
+//  "mongodb://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@ac-jkhg551-shard-00-00.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-01.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-02.big13pb.mongodb.net:27017/projectAI?ssl=true&replicaSet=atlas-m2ow9a-shard-0&authSource=admin&appName=Cluster0";
 
 mongoose.connect(uri)
   .then(async () => {

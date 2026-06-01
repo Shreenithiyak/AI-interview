@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 
-const uri1 = "mongodb://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@ac-jkhg551-shard-00-00.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-01.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-02.big13pb.mongodb.net:27017/projectAI?ssl=true&replicaSet=atlas-m2ow9a-shard-0&authSource=admin&appName=Cluster0";
-const uri2 = "mongodb+srv://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@cluster0.big13pb.mongodb.net/projectAI?retryWrites=true&w=majority";
+const uri1 = process.env.MONGO_URI
+// "mongodb://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@ac-jkhg551-shard-00-00.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-01.big13pb.mongodb.net:27017,ac-jkhg551-shard-00-02.big13pb.mongodb.net:27017/projectAI?ssl=true&replicaSet=atlas-m2ow9a-shard-0&authSource=admin&appName=Cluster0";
+const uri2 = process.env.MONGO_URI_srv
+// "mongodb+srv://nithiyashreek2004_db_user:wWglG6WffLeWeaaU@cluster0.big13pb.mongodb.net/projectAI?retryWrites=true&w=majority";
 
 async function testConnection(name, uri) {
   console.log(`Testing connection for: ${name}`);
