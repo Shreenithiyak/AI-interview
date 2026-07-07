@@ -17,7 +17,7 @@ const LevelBadge = ({ label, active, colorDot, onClick }) => (
   </button>
 );
 
-const QuestionCard = ({ category, time, question, description, focusAreas }) => {
+const QuestionCard = ({ category, time, question, description, focusAreas, allQuestions, activeLevel }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -41,7 +41,7 @@ const QuestionCard = ({ category, time, question, description, focusAreas }) => 
         <div className="flex items-center gap-3 shrink-0">
           <Link 
             to="/simulator" 
-            state={{ selectedQuestion: question }}
+            state={{ selectedQuestion: question, questionsList: allQuestions, activeLevel }}
             className="px-5 py-2.5 bg-slate-100 dark:bg-[#252a3d] hover:bg-slate-200 dark:hover:bg-[#2a3045] text-slate-800 dark:text-white text-sm font-semibold rounded-lg border border-slate-200 dark:border-white/5 transition-colors shadow-sm"
           >
             Practice Now
@@ -197,6 +197,8 @@ export default function QuestionBank() {
                 question={q.question} 
                 description={q.description}
                 focusAreas={q.focusAreas}
+                allQuestions={questions.map(qu => qu.question)}
+                activeLevel={activeLevel}
               />
             ))
           ) : (

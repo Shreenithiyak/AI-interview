@@ -83,7 +83,7 @@ export const useVoiceInterview = (initialQuestion) => {
     };
     const t = setTimeout(init, 500); // wait for voices to load
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Start Recording ───────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export const useVoiceInterview = (initialQuestion) => {
           liveText = Array.from(e.results).map(r => r[0].transcript).join(' ');
           setTranscript(`You: ${liveText}`);
         };
-        recognition.onend = () => {};
+        recognition.onend = () => { };
         recognition.start();
         browserRecognitionRef.current = { recognition, getText: () => liveText };
       }
@@ -225,6 +225,30 @@ export const useVoiceInterview = (initialQuestion) => {
     setAiAudioUrl(null);
   }, [initialQuestion]);
 
+  const loadNewQuestion = useCallback((newQuestion) => {
+    window.speechSynthesis?.cancel();
+    setChatHistory([{ role: 'assistant', content: newQuestion }]);
+    setTranscript(`AI: ${newQuestion}`);
+    setAiAudioUrl(null);
+    
+    setIsSpeaking(true);
+    speakText(newQuestion, token, () => {
+      logout();
+      navigate('/login');
+    }).then(url => {
+      if (url) setAiAudioUrl(url);
+      setIsSpeaking(false);
+    }).catch(err => {
+      console.error(err);
+      setIsSpeaking(false);
+    });
+  }, [token, logout, navigate]);
+
+  const stopAiVoice = useCallback(() => {
+    window.speechSynthesis?.cancel();
+    setAiAudioUrl(null);
+  }, []);
+
   return {
     isRecording,
     isProcessing,
@@ -235,6 +259,8 @@ export const useVoiceInterview = (initialQuestion) => {
     startRecording,
     stopRecording,
     restartInterview,
+    loadNewQuestion,
+    stopAiVoice,
     setAiAudioUrl
   };
 };

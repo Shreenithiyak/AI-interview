@@ -14,14 +14,14 @@ const ActivityRow = ({ icon, title, date, score }) => (
         <p className="text-sm text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a]">Completed • {date}</p>
       </div>
     </div>
-    
+
     <div className="flex items-center justify-between md:justify-end gap-12 w-full md:w-auto">
       <div className="text-center md:text-right">
         <div className="text-[10px] text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] uppercase tracking-wider font-semibold mb-1">Score</div>
         <div className="text-xl font-bold text-slate-900 dark:text-white reading:text-[#433422] leading-none">{score}%</div>
       </div>
       <Link to="/history" className="text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00] font-semibold text-sm flex items-center gap-1 hover:text-[#00b8d4] dark:hover:text-[#00cbe5] transition-colors">
-        View Feedback 
+        View Feedback
         <img src="https://img.icons8.com/ios-filled/50/00e5ff/chevron-right.png" alt="arrow" className="w-4 h-4 object-contain reading:brightness-50" />
       </Link>
     </div>
@@ -50,7 +50,7 @@ const TestimonialRow = ({ userProfile, text, role, company }) => (
 );
 
 export default function Dashboard() {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(user);
 
@@ -68,6 +68,35 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!token) return;
+
+    if (user && updateUser) {
+      const today = new Date().toDateString();
+      const lastLogin = user.lastLoginDate;
+      let newStreak = user.streakCount || 0;
+      
+      if (lastLogin !== today) {
+        if (lastLogin) {
+          const lastDate = new Date(lastLogin);
+          const currentDate = new Date(today);
+          const diffTime = Math.abs(currentDate - lastDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+          
+          if (diffDays === 1) {
+            newStreak += 1;
+          } else if (diffDays > 1) {
+            newStreak = 1;
+          }
+        } else {
+          newStreak = 1;
+        }
+        
+        updateUser({
+          ...user,
+          lastLoginDate: today,
+          streakCount: newStreak
+        });
+      }
+    }
 
     const fetchProfile = async () => {
       if (token === 'social-login-token') {
@@ -128,7 +157,7 @@ export default function Dashboard() {
           <p className="text-xl text-slate-600 dark:text-[#8c92a4] reading:text-[#7b654a] max-w-3xl leading-relaxed mb-10">
             {isNewLogin
               ? "Welcome to Neon. It looks like you're ready to start your journey. Let's do a quick mock interview."
-              : <span>You're <strong className="text-slate-900 dark:text-white reading:text-[#433422] font-semibold">{profile?.history?.[0]?.score || 84}% ready</strong> for your next Technical Interview. Our AI suggests focusing on System Design today.</span>}
+              : <span>You're <strong className="text-slate-900 dark:text-white reading:text-[#433422] font-semibold">{profile?.history?.[0]?.score ?? 84}% ready</strong> for your next Technical Interview. Our AI suggests focusing on System Design today.</span>}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -148,11 +177,11 @@ export default function Dashboard() {
               <img src="https://img.icons8.com/ios-filled/50/00e5ff/bullseye.png" alt="score" className="w-5 h-5 object-contain reading:brightness-50" />
             </div>
             <div className="flex items-end gap-3 mb-8">
-              <div className="text-6xl font-bold text-slate-900 dark:text-white reading:text-[#433422] leading-none tracking-tight">{isNewLogin ? '0%' : `${profile?.history?.[0]?.score || 84}%`}</div>
+              <div className="text-6xl font-bold text-slate-900 dark:text-white reading:text-[#433422] leading-none tracking-tight">{isNewLogin ? '0%' : `${profile?.history?.[0]?.score ?? 84}%`}</div>
               {!isNewLogin && <div className="text-sm font-bold text-[#10b981] mb-1">+2.4%</div>}
             </div>
             <div className="w-full h-2 bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3] rounded-full overflow-hidden">
-              <div className="h-full bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] rounded-full shadow-[0_0_10px_#00e5ff] transition-all duration-1000" style={{ width: isNewLogin ? '0%' : `${profile?.history?.[0]?.score || 84}%` }}></div>
+              <div className="h-full bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] rounded-full shadow-[0_0_10px_#00e5ff] transition-all duration-1000" style={{ width: isNewLogin ? '0%' : `${profile?.history?.[0]?.score ?? 84}%` }}></div>
             </div>
           </div>
 
@@ -178,17 +207,20 @@ export default function Dashboard() {
               <img src="https://img.icons8.com/ios-filled/50/fbbf24/fire-element.png" alt="streak" className="w-5 h-5 object-contain reading:brightness-50" />
             </div>
             <div className="flex items-end gap-2 mb-8">
-              <div className="text-6xl font-bold text-slate-900 dark:text-white reading:text-[#433422] leading-none tracking-tight">{isNewLogin ? '0' : '5'}</div>
+              <div className="text-6xl font-bold text-slate-900 dark:text-white reading:text-[#433422] leading-none tracking-tight">{profile?.streakCount || 0}</div>
               <div className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] font-medium mb-1">Days</div>
             </div>
             <div className="flex justify-between gap-2">
-              <div className={`h-2 flex-1 rounded-full ${isNewLogin ? 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]' : 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]'}`}></div>
-              <div className={`h-2 flex-1 rounded-full ${isNewLogin ? 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]' : 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]'}`}></div>
-              <div className={`h-2 flex-1 rounded-full ${isNewLogin ? 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]' : 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]'}`}></div>
-              <div className={`h-2 flex-1 rounded-full ${isNewLogin ? 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]' : 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]'}`}></div>
-              <div className={`h-2 flex-1 rounded-full ${isNewLogin ? 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]' : 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]'}`}></div>
-              <div className="h-2 flex-1 rounded-full bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]"></div>
-              <div className="h-2 flex-1 rounded-full bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]"></div>
+              {[...Array(7)].map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`h-2 flex-1 rounded-full ${
+                    (profile?.streakCount || 0) > i 
+                      ? 'bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00] shadow-[0_0_8px_rgba(0,229,255,0.5)]' 
+                      : 'bg-slate-200 dark:bg-[#252839] reading:bg-[#f2e7d3]'
+                  }`}
+                ></div>
+              ))}
             </div>
           </div>
         </div>
@@ -228,24 +260,15 @@ export default function Dashboard() {
             </>
           ) : (
             <>
-              <ActivityRow
-                title="Senior Frontend Engineer"
-                date="Oct 24, 2024"
-                score="92"
-                icon={<CodeIcon />}
-              />
-              <ActivityRow
-                title="Backend Architecture"
-                date="Oct 22, 2024"
-                score="78"
-                icon={<DatabaseIcon />}
-              />
-              <ActivityRow
-                title="Behavioral Foundations"
-                date="Oct 19, 2024"
-                score="85"
-                icon={<UserIcon />}
-              />
+              {profile.history?.map((hist, idx) => (
+                <ActivityRow
+                  key={idx}
+                  title={hist.title || "Mock Interview"}
+                  date={hist.date}
+                  score={hist.score}
+                  icon={idx % 3 === 0 ? <CodeIcon /> : idx % 3 === 1 ? <DatabaseIcon /> : <UserIcon />}
+                />
+              ))}
             </>
           )}
         </div>

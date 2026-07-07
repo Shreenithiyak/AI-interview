@@ -51,7 +51,7 @@ export default function Layout({ children }) {
         {children}
       </main>
       <footer className="w-full px-8 lg:px-12 py-10 flex flex-col md:flex-row justify-between items-center text-[11px] uppercase tracking-wide text-[#5e6376] bg-[#0a0c12] border-t border-white/5 relative z-10">
-        <div className="mb-4 md:mb-0 font-bold">© 2024 INTERVIEW-READY. All Rights Reserved.</div>
+        <div className="mb-4 md:mb-0 font-bold">© {new Date().getFullYear()} INTERVIEW-READY. All Rights Reserved.</div>
         <div className="flex gap-8 mb-4 md:mb-0">
           <a href="#" className="hover:text-white transition">Privacy Policy</a>
           <a href="#" className="hover:text-white transition">Terms of Service</a>

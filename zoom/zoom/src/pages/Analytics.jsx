@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const LoadingStep = ({ text, status }) => {
@@ -29,21 +29,23 @@ export default function Analytics() {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const hasUpdated = useRef(false);
+  const location = useLocation();
+  const finalScore = location.state?.score || 92;
 
   // 1. Immediately write history on mount so any navigation instantly has the remarks saved
   useEffect(() => {
     if (user && !hasUpdated.current) {
       hasUpdated.current = true;
-      if (!user.history || user.history.length === 0) {
-        updateUser({
-          ...user,
-          history: [
-            { date: new Date().toLocaleDateString(), score: 92, title: 'System Design Mock' }
-          ]
-        });
-      }
+      const currentHistory = user.history || [];
+      updateUser({
+        ...user,
+        history: [
+          { date: new Date().toLocaleDateString(), score: finalScore, title: 'Mock Interview' },
+          ...currentHistory
+        ]
+      });
     }
-  }, [user, updateUser]);
+  }, [user, updateUser, finalScore]);
 
   // 2. Run the load step animation once on mount to avoid recalculation loops
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function Analytics() {
               Analysis Complete!
             </h1>
             <p className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] mb-10 text-xl font-medium">
-              You scored an impressive <span className="text-[#00cbe5] dark:text-[#00E5FF] reading:text-[#b25e00] font-bold">92%</span> on architecture.
+              You scored an impressive <span className="text-[#00cbe5] dark:text-[#00E5FF] reading:text-[#b25e00] font-bold">{finalScore}%</span> on architecture.
             </p>
 
             <Link to="/dashboard" className="inline-flex items-center justify-center px-10 py-4 bg-[#00cbe5] dark:bg-[#00E5FF] reading:bg-[#b25e00] text-white dark:text-[#0F111A] reading:text-white rounded-xl font-extrabold transition hover:bg-[#00b8d4] dark:hover:bg-[#00cbe5] reading:hover:bg-[#995100] hover:shadow-[0_0_30px_rgba(0,203,229,0.4)] dark:hover:shadow-[0_0_30px_rgba(0,229,255,0.4)] reading:hover:shadow-[0_0_30px_rgba(178,94,0,0.4)] text-lg shadow-[0_0_20px_rgba(0,203,229,0.2)] dark:shadow-[0_0_20px_rgba(0,229,255,0.2)] reading:shadow-[0_0_20px_rgba(178,94,0,0.2)]">

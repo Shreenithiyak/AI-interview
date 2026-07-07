@@ -77,7 +77,7 @@ export default function AuthLayout({ children }) {
 
       {/* Footer */}
       <footer className="relative z-10 px-6 lg:px-12 py-6 flex flex-col md:flex-row justify-between items-center text-[11px] uppercase tracking-wide text-[#5e6376] w-full max-w-[1440px] mx-auto mt-auto bg-transparent">
-        <div className="mb-4 md:mb-0 font-bold">© 2024 INTERVIEW-READY. All Rights Reserved.</div>
+        <div className="mb-4 md:mb-0 font-bold">© {new Date().getFullYear()} INTERVIEW-READY. All Rights Reserved.</div>
         <div className="flex gap-8 mb-4 md:mb-0">
           <a href="#" className="hover:text-white transition">Privacy Policy</a>
           <a href="#" className="hover:text-white transition">Terms of Service</a>

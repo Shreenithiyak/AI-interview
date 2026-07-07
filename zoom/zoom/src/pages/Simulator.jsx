@@ -4,14 +4,20 @@ import { FaStop, FaFastForward, FaRedoAlt, FaMicrophone } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useVoiceInterview } from '../hooks/useVoiceInterview';
+import axios from 'axios';
+import { useCompany } from '../context/CompanyContext';
+import { useRole } from '../context/RoleContext';
 
 export default function Simulator() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, updateUser } = useAuth();
   const { reminderEnabled, reminderTime } = useSettings();
+  const { selectedCompany } = useCompany();
+  const { roles, selectedRoleId } = useRole();
   
-  const [confidence, setConfidence] = useState(0);
+  const selectedRole = roles?.find(r => r.id === selectedRoleId);
+
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -55,20 +61,68 @@ export default function Simulator() {
 
     fetchProfile();
   }, [token, navigate, logout]);
-  
+
   // Get question from state or use default if navigated directly
-  const displayQuestion = location.state?.selectedQuestion || "Tell me about a time you solved a complex technical problem.";
+  const passedQuestions = location.state?.questionsList || [
+    location.state?.selectedQuestion || "Tell me about a time you solved a complex technical problem."
+  ];
+  const initialIndex = location.state?.selectedQuestion 
+    ? passedQuestions.indexOf(location.state.selectedQuestion)
+    : 0;
+
+  const [questionsList, setQuestionsList] = useState(passedQuestions);
+  const [qIndex, setQIndex] = useState(initialIndex !== -1 ? initialIndex : 0);
+  const [currentLevel, setCurrentLevel] = useState(location.state?.activeLevel || 'beginner');
+  
+  const [showNextLevelModal, setShowNextLevelModal] = useState(false);
+  const [showSessionCompleteModal, setShowSessionCompleteModal] = useState(false);
+  
+  const [cumulativeScore, setCumulativeScore] = useState(0);
+  const [questionsAnswered, setQuestionsAnswered] = useState(0);
+  const [finalSessionScore, setFinalSessionScore] = useState(0);
+  
+  const displayQuestion = questionsList[qIndex];
 
   const {
     isRecording,
     isProcessing,
     isSpeaking,
     transcript,
+    chatHistory,
     aiAudioUrl,
     startRecording,
     stopRecording,
-    restartInterview
+    restartInterview,
+    loadNewQuestion,
+    stopAiVoice
   } = useVoiceInterview(displayQuestion);
+
+  const [confidence, setConfidence] = useState(0);
+
+
+  // Track previous values to know when to recalculate (avoiding useEffect cascading renders)
+  const [prevTranscript, setPrevTranscript] = useState("");
+  const [prevIsRecording, setPrevIsRecording] = useState(false);
+  const [prevChatLength, setPrevChatLength] = useState(0);
+
+  const currentChatLength = chatHistory?.length || 0;
+
+  // Adjust state while rendering instead of using an effect
+  if (transcript !== prevTranscript || isRecording !== prevIsRecording || currentChatLength !== prevChatLength) {
+    setPrevTranscript(transcript);
+    setPrevIsRecording(isRecording);
+    setPrevChatLength(currentChatLength);
+
+    if (transcript && transcript.startsWith("You: ")) {
+      const userText = transcript.substring(5).trim();
+      const words = userText.length > 0 ? userText.split(/\s+/).length : 0;
+      setConfidence(Math.min(100, Math.floor(words * 5)));
+    } else if (isRecording && transcript === "Recording... Speak your answer.") {
+      setConfidence(0);
+    } else if (transcript && transcript.startsWith("AI: ") && currentChatLength <= 1) {
+      setConfidence(0);
+    }
+  }
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -83,11 +137,83 @@ export default function Simulator() {
 
   const handleRestart = () => {
     restartInterview();
-    setConfidence(0);
   };
 
   const handleSkip = () => {
+    const newCumulative = cumulativeScore + confidence;
+    const newAnswered = questionsAnswered + 1;
+    setCumulativeScore(newCumulative);
+    setQuestionsAnswered(newAnswered);
+
+    if (qIndex + 1 < questionsList.length) {
+      const nextIndex = qIndex + 1;
+      setQIndex(nextIndex);
+      loadNewQuestion(questionsList[nextIndex]);
+      setConfidence(0);
+    } else {
+      stopAiVoice();
+      if (currentLevel === 'advanced') {
+        const finalAvg = Math.floor(newCumulative / newAnswered);
+        setFinalSessionScore(finalAvg);
+        setShowSessionCompleteModal(true);
+      } else {
+        setShowNextLevelModal(true);
+      }
+    }
+  };
+
+  const handleNextLevelYes = async () => {
+    let nextLevel = 'intermediate';
+    if (currentLevel === 'intermediate') nextLevel = 'advanced';
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const response = await axios.get(`${API_URL}/api/user/questions`, {
+        params: {
+          level: nextLevel,
+          company: selectedCompany,
+          role: selectedRole ? selectedRole.title : undefined
+        }
+      });
+      const data = response.data.data;
+      if (data && data.length > 0) {
+        const newQuestions = data.map(q => q.question);
+        setQuestionsList(newQuestions);
+        setCurrentLevel(nextLevel);
+        setQIndex(0);
+        loadNewQuestion(newQuestions[0]);
+        setConfidence(0);
+      } else {
+        alert(`No questions found for the ${nextLevel} level.`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load next level questions.");
+    } finally {
+      setShowNextLevelModal(false);
+    }
+  };
+
+  const handleNextLevelNo = () => {
+    setShowNextLevelModal(false);
     navigate('/questions');
+  };
+
+  const handleSessionComplete = () => {
+    setShowSessionCompleteModal(false);
+    if (finalSessionScore >= 50) {
+      navigate('/analytics', { state: { score: finalSessionScore } });
+    } else {
+      const currentHistory = user?.history || [];
+      updateUser({
+        ...user,
+        history: [
+          { date: new Date().toLocaleDateString(), score: finalSessionScore, title: 'Mock Interview' },
+          ...currentHistory
+        ]
+      });
+      navigate('/dashboard');
+    }
   };
 
   // Format time (e.g. 18:00 to 6:00 PM)
@@ -136,10 +262,10 @@ export default function Simulator() {
 
   return (
     <div className="min-h-screen bg-[#F4F6FA] dark:bg-[#11141D] reading:bg-[#f7efe2] text-slate-850 dark:text-white reading:text-[#433422] font-sans flex flex-col transition-colors duration-300">
-      
+
       {/* Top Navbar matching DashboardLayout exactly */}
       <nav className="flex justify-between items-center px-8 lg:px-12 py-5 bg-[#0F111A] reading:bg-[#eadbbf] border-b border-white/5 reading:border-[#433422]/15 sticky top-0 z-50 transition-colors duration-300">
-        
+
         {/* Brand / Logo */}
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-[#00cbe5] dark:text-[#00E5FF] reading:text-[#b25e00]">
@@ -149,21 +275,21 @@ export default function Simulator() {
 
         {/* Center Nav Items */}
         <div className="hidden md:flex items-center gap-8 pl-12 flex-1 text-left">
-          <Link 
-            to="/dashboard" 
+          <Link
+            to="/dashboard"
             className="text-sm font-medium transition-all relative text-slate-550 dark:text-[#8c92a4] reading:text-[#7b654a] hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422]"
           >
             Dashboard
           </Link>
-          <Link 
-            to="/practice" 
+          <Link
+            to="/practice"
             className="relative text-sm font-medium transition-all text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00]"
           >
             Practice
             <div className="absolute -bottom-[23px] left-0 right-0 h-[2px] bg-[#00cbe5] dark:bg-[#00e5ff] reading:bg-[#b25e00]" />
           </Link>
-          <Link 
-            to="/analytics" 
+          <Link
+            to="/analytics"
             className="text-sm font-medium transition-all relative text-slate-550 dark:text-[#8c92a4] reading:text-[#7b654a] hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422]"
           >
             Analytics
@@ -172,7 +298,7 @@ export default function Simulator() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-6 relative" ref={dropdownRef}>
-          <button 
+          <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="text-slate-555 dark:text-[#8c92a4] reading:text-[#7b654a] hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422] transition-colors relative"
           >
@@ -204,7 +330,7 @@ export default function Simulator() {
           <Link to="/settings" className="text-slate-550 dark:text-[#8c92a4] reading:text-[#7b654a] hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422] transition-colors">
             <img src="https://img.icons8.com/ios-filled/50/8c92a4/settings.png" alt="Settings" className="w-5 h-5 object-contain hover:brightness-200 transition-all dark:brightness-100 reading:brightness-50" />
           </Link>
-          
+
           <Link to="/profile" className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/20 reading:border-[#433422]/15 hover:border-[#00cbe5] dark:hover:border-[#00e5ff] reading:hover:border-[#b25e00] transition-all ml-4 flex items-center justify-center bg-slate-50 dark:bg-[#171923] reading:bg-[#f2e7d3] text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00] font-bold text-sm shadow-sm" title="View Profile">
             {user?.name?.charAt(0) || 'U'}
           </Link>
@@ -214,14 +340,14 @@ export default function Simulator() {
 
       {/* Main Form Content */}
       <div className="flex-1 max-w-[1400px] mx-auto w-full p-6 lg:p-8 flex flex-col gap-8 pb-20 text-left">
-        
+
         {/* Videos Row (Top) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-auto lg:min-h-[500px]">
           {/* AI Mentor Video Feed */}
           <div className="relative rounded-[2rem] overflow-hidden bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] border border-slate-200 dark:border-white/5 reading:border-[#433422]/12 shadow-xl group flex flex-col items-center justify-center min-h-[350px] transition-colors duration-300">
             <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=800&auto=format&fit=crop" alt="AI Mentor" className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-200/50 dark:from-[#11141D]/90 via-transparent to-transparent pointer-events-none"></div>
-            
+
             <div className="absolute bottom-6 left-6 right-6 lg:right-1/4 bg-white/80 dark:bg-[#1C1F2E]/80 reading:bg-[#fcf6e8]/80 backdrop-blur-md border border-slate-200 dark:border-white/10 reading:border-[#433422]/12 rounded-2xl p-5 shadow-lg transition-colors duration-300">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981] animate-pulse"></div>
@@ -234,13 +360,13 @@ export default function Simulator() {
           {/* User Camera Placeholder (No real Image) */}
           <div className="relative rounded-[2rem] overflow-hidden bg-slate-100 dark:bg-[#151824] reading:bg-[#f2e7d3] border border-slate-200 dark:border-white/5 reading:border-[#433422]/12 shadow-xl min-h-[350px] flex items-center justify-center transition-colors duration-300">
             <div className="flex flex-col items-center gap-6">
-               <div className="w-32 h-32 rounded-full bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] border-2 border-[#00cbe5]/20 dark:border-[#00e5ff]/20 reading:border-[#b25e00]/20 flex items-center justify-center text-5xl font-bold text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00] shadow-[0_0_40px_rgba(0,229,255,0.05)] transition-colors duration-300">
-                 {user?.name?.charAt(0).toUpperCase() || 'U'}
-               </div>
-               <div className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] text-sm font-medium tracking-widest uppercase transition-colors">Camera Feed Active</div>
+              <div className="w-32 h-32 rounded-full bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] border-2 border-[#00cbe5]/20 dark:border-[#00e5ff]/20 reading:border-[#b25e00]/20 flex items-center justify-center text-5xl font-bold text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00] shadow-[0_0_40px_rgba(0,229,255,0.05)] transition-colors duration-300">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] text-sm font-medium tracking-widest uppercase transition-colors">Camera Feed Active</div>
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-slate-200/50 dark:from-[#11141D]/90 via-transparent to-transparent pointer-events-none"></div>
-            
+
             <div className={`absolute top-6 left-6 bg-white/85 dark:bg-[#11141D]/85 reading:bg-[#fcf6e8]/85 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 dark:border-white/10 reading:border-[#433422]/12 flex items-center gap-2 shadow-sm transition-colors duration-300 ${isRecording ? 'opacity-100' : 'opacity-50'}`}>
               <div className={`w-2.5 h-2.5 rounded-full ${isRecording ? 'bg-[#ef4444] shadow-[0_0_8px_#ef4444] animate-pulse' : 'bg-slate-400'}`}></div>
               <span className="text-xs font-bold tracking-widest text-slate-700 dark:text-[#e2e8f0] reading:text-[#433422]">{isRecording ? 'REC ACTIVE' : 'REC PAUSED'}</span>
@@ -254,7 +380,7 @@ export default function Simulator() {
 
         {/* Info & Controls Row (Bottom) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
-          
+
           {/* Question & Transcription */}
           <div className="lg:col-span-2 bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] rounded-3xl p-8 border border-slate-200 dark:border-white/5 reading:border-[#433422]/12 flex flex-col shadow-xl transition-colors duration-300">
             <div className="mb-8 pl-1">
@@ -263,7 +389,7 @@ export default function Simulator() {
                 "{displayQuestion}"
               </h3>
             </div>
-            
+
             <div className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-[#171923] dark:to-[#12151f] reading:bg-[#f2e7d3] border border-[#00cbe5]/20 dark:border-[#00e5ff]/20 reading:border-[#b25e00]/20 relative rounded-2xl p-7 shadow-inner transition-all duration-300">
               <div className="text-[10px] font-bold tracking-[0.15em] text-slate-400 dark:text-[#8c92a4] reading:text-[#7b654a] uppercase mb-5">Real-Time Transcription</div>
               <p className={`text-lg leading-[1.8] font-medium tracking-wide italic transition-colors ${isProcessing ? 'text-slate-400 animate-pulse' : 'text-slate-700 dark:text-[#e2e8f0] reading:text-[#433422]'}`}>
@@ -288,7 +414,7 @@ export default function Simulator() {
               </p>
 
               {isRecording ? (
-                <button 
+                <button
                   onClick={stopRecording}
                   disabled={isProcessing}
                   className="w-full bg-[#ef4444] hover:bg-[#dc2626] disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(239,68,68,0.2)] mb-5 active:scale-[0.98]"
@@ -309,7 +435,7 @@ export default function Simulator() {
                   <span className="text-[15px]">AI is Speaking...</span>
                 </button>
               ) : (
-                <button 
+                <button
                   onClick={startRecording}
                   disabled={isProcessing}
                   className="w-full bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-[0_0_20px_rgba(16,185,129,0.2)] mb-5 active:scale-[0.98]"
@@ -320,14 +446,24 @@ export default function Simulator() {
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={handleSkip}
-                  className="bg-transparent hover:bg-slate-50 dark:hover:bg-white/5 reading:hover:bg-[#eadbbf] border-[1.5px] border-slate-250 dark:border-white/10 reading:border-[#433422]/20 text-slate-880 dark:text-white reading:text-[#433422] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 transition-colors active:scale-[0.98]"
-                >
-                  <FaFastForward className="w-[14px] h-[14px]" />
-                  <span className="text-[15px]">Skip</span>
-                </button>
-                <button 
+                {confidence >= 50 ? (
+                  <button
+                    onClick={() => navigate('/analytics', { state: { score: confidence } })}
+                    className="bg-[#10b981] hover:bg-[#059669] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 transition-colors shadow-[0_0_15px_rgba(16,185,129,0.25)] active:scale-[0.98]"
+                  >
+                    <FaFastForward className="w-[14px] h-[14px]" />
+                    <span className="text-[15px]">DONE</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSkip}
+                    className="bg-transparent hover:bg-slate-50 dark:hover:bg-white/5 reading:hover:bg-[#eadbbf] border-[1.5px] border-slate-250 dark:border-white/10 reading:border-[#433422]/20 text-slate-880 dark:text-white reading:text-[#433422] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 transition-colors active:scale-[0.98]"
+                  >
+                    <FaFastForward className="w-[14px] h-[14px]" />
+                    <span className="text-[15px]">Skip</span>
+                  </button>
+                )}
+                <button
                   onClick={handleRestart}
                   className="bg-[#0055ff] hover:bg-[#004ade] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2.5 transition-colors shadow-[0_0_15px_rgba(0,85,255,0.25)] active:scale-[0.98]"
                 >
@@ -356,6 +492,71 @@ export default function Simulator() {
         )}
 
       </div>
+      
+      {/* Next Level Modal */}
+      {showNextLevelModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] rounded-3xl p-8 max-w-md w-full border border-slate-200 dark:border-white/10 shadow-2xl transform animate-fade-in-up text-center mx-4">
+            <div className="w-16 h-16 bg-[#00cbe5]/20 text-[#00cbe5] rounded-full flex items-center justify-center mx-auto mb-6">
+              <img src="https://img.icons8.com/ios-filled/50/00cbe5/level-up.png" alt="level up" className="w-8 h-8 object-contain" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white reading:text-[#433422] mb-3 tracking-tight">Level Completed!</h2>
+            <p className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] mb-8 leading-relaxed">
+              You have skipped or completed all questions in the <strong>{currentLevel}</strong> section. Proceed with the next level?
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={handleNextLevelNo}
+                className="flex-1 px-6 py-3.5 rounded-xl font-bold border-2 border-slate-200 dark:border-white/10 reading:border-[#433422]/20 text-slate-600 dark:text-slate-300 reading:text-[#433422] hover:bg-slate-50 dark:hover:bg-white/5 reading:hover:bg-[#eadbbf] transition-colors"
+              >
+                No, Go Back
+              </button>
+              <button 
+                onClick={handleNextLevelYes}
+                className="flex-1 px-6 py-3.5 rounded-xl font-bold bg-[#00cbe5] dark:bg-[#00e5ff] text-white dark:text-[#0f111a] hover:bg-[#00b8d4] dark:hover:bg-[#00cbe5] transition-colors shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+              >
+                Yes, Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Complete Modal */}
+      {showSessionCompleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] rounded-3xl p-8 max-w-md w-full border border-slate-200 dark:border-white/10 shadow-2xl transform animate-fade-in-up text-center mx-4">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${finalSessionScore >= 50 ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+              <img src={finalSessionScore >= 50 ? "https://img.icons8.com/ios-filled/50/22c55e/trophy.png" : "https://img.icons8.com/ios-filled/50/ef4444/sad.png"} alt="result" className="w-8 h-8 object-contain" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white reading:text-[#433422] mb-2 tracking-tight">
+              {finalSessionScore >= 50 ? 'Session Completed!' : 'Needs Improvement'}
+            </h2>
+            
+            <div className="text-5xl font-black mb-4">
+              <span className={finalSessionScore >= 50 ? 'text-green-500' : 'text-red-500'}>{finalSessionScore}%</span>
+            </div>
+
+            <p className="text-slate-500 dark:text-[#8c92a4] reading:text-[#7b654a] mb-8 leading-relaxed">
+              {finalSessionScore >= 50 
+                ? "Great job! You've successfully completed all interview levels with a strong confidence score. You are ready!"
+                : "You've completed all levels, but your score indicates you need more practice and improvement. Keep trying!"}
+            </p>
+            
+            <button 
+              onClick={handleSessionComplete}
+              className={`w-full px-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all ${
+                finalSessionScore >= 50 
+                  ? 'bg-green-500 hover:bg-green-600 shadow-green-500/30' 
+                  : 'bg-red-500 hover:bg-red-600 shadow-red-500/30'
+              }`}
+            >
+              {finalSessionScore >= 50 ? 'DONE (View Analytics)' : 'Return to Dashboard'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

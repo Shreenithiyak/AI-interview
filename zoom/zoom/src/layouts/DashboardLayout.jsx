@@ -166,7 +166,7 @@ export default function DashboardLayout({ children }) {
 
       {/* Footer from image */}
       <footer className="w-full max-w-[1280px] mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-[11px] font-medium text-slate-400 dark:text-[#5e6376] reading:text-[#8b7355] mt-auto uppercase tracking-wide border-t border-slate-200 dark:border-transparent reading:border-[#433422]/10">
-        <div>© 2024 INTERVIEW-READY. ALL RIGHTS RESERVED.</div>
+        <div>© {new Date().getFullYear()} INTERVIEW-READY. ALL RIGHTS RESERVED.</div>
         <div className="flex gap-8 mt-4 md:mt-0">
           <a href="#" className="hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422] transition">Privacy Policy</a>
           <a href="#" className="hover:text-slate-800 dark:hover:text-white reading:hover:text-[#433422] transition">Terms of Service</a>
