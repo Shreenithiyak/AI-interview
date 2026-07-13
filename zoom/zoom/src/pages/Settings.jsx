@@ -1,8 +1,10 @@
 import React from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { useSettings } from '../context/SettingsContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const {
     theme,
     setTheme,
@@ -17,9 +19,17 @@ export default function Settings() {
   return (
     <DashboardLayout>
       <div className="py-8 max-w-[800px] mx-auto text-left">
-        <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white reading:text-[#433422] mb-8 tracking-tight transition-colors duration-300">
-          Settings & Preferences
-        </h1>
+        <div className="flex items-center gap-4 mb-8">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+          >
+            <img src="https://img.icons8.com/ios-filled/50/8c92a4/left.png" alt="Back" className="w-6 h-6 object-contain dark:brightness-100" />
+          </button>
+          <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white reading:text-[#433422] tracking-tight transition-colors duration-300 m-0">
+            Settings & Preferences
+          </h1>
+        </div>
 
         <div className="flex flex-col gap-6">
           

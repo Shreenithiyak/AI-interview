@@ -14,9 +14,17 @@ export default function Profile() {
   return (
     <DashboardLayout>
       <div className="py-8 max-w-[800px] mx-auto">
-        <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-8 tracking-tight transition-colors duration-300">
-          User Profile
-        </h1>
+        <div className="flex items-center gap-4 mb-8">
+          <button 
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+          >
+            <img src="https://img.icons8.com/ios-filled/50/8c92a4/left.png" alt="Back" className="w-6 h-6 object-contain dark:brightness-100" />
+          </button>
+          <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight transition-colors duration-300 m-0">
+            User Profile
+          </h1>
+        </div>
         
         <div className="bg-white dark:bg-[#1C1F2E] rounded-3xl p-8 border border-slate-200 dark:border-white/5 relative overflow-hidden flex flex-col gap-8 shadow-lg transition-colors duration-300">
           <div className="flex items-center gap-6">

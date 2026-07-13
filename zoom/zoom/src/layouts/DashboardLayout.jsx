@@ -126,7 +126,16 @@ const Navbar = () => {
         {showNotifications && (
           <div className="absolute right-16 top-10 w-80 bg-white dark:bg-[#1C1F2E] reading:bg-[#fcf6e8] border border-slate-200 dark:border-white/5 reading:border-[#433422]/12 rounded-2xl shadow-xl z-50 p-4 transition-colors duration-300">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 reading:border-[#433422]/10 pb-3 mb-3">
-              <span className="text-sm font-bold text-slate-850 dark:text-white reading:text-[#433422]">Notifications</span>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowNotifications(false)}
+                  className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                  title="Close Notifications"
+                >
+                  <img src="https://img.icons8.com/ios-filled/50/8c92a4/left.png" alt="Back" className="w-4 h-4 object-contain dark:brightness-100" />
+                </button>
+                <span className="text-sm font-bold text-slate-850 dark:text-white reading:text-[#433422]">Notifications</span>
+              </div>
               <span className="text-[10px] text-[#00cbe5] dark:text-[#00e5ff] reading:text-[#b25e00] uppercase tracking-wider font-bold bg-[#00e5ff]/5 reading:bg-[#b25e00]/5 px-2 py-0.5 rounded">Reminders</span>
             </div>
             <div className="flex flex-col gap-3 max-h-72 overflow-y-auto pr-1">
